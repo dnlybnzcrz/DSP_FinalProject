@@ -1,4 +1,5 @@
 streamlit
 gTTS
-SpeechRecognition
-pyaudio
+speechrecognition
+sounddevice
+scipy
