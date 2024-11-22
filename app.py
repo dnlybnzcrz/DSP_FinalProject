@@ -1,153 +1,59 @@
 import streamlit as st
 from gtts import gTTS
-import os
-import mysql.connector
 import speech_recognition as sr
-
-# Database connection
-mydb = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="",
-    database="test"
-)
-
-mycursor = mydb.cursor()
+import os
 
 
-class SoundEncryptionDecryptionProgram:
-    def __init__(self):
-        self.codes = {
-            'a': 'z', 'b': 'x', 'c': 'y', 'd': 's', 'e': 'u', 'f': 'a',
-            'g': 'e', 'h': 'c', 'i': 'k', 'j': 'r', 'k': 'n', 'l': 'g',
-            'm': 'd', 'n': 'l', 'o': 'm', 'p': 't', 'q': 'f', 'r': 'i',
-            's': 'h', 't': 'o', 'u': 'j', 'v': 'p', 'w': 'v', 'x': 'b',
-            'y': 'w', 'z': 'q'
-        }
-        self.list_1 = []
-        self.list_2 = []
-        self.r = sr.Recognizer()
-        self.dec1 = []
-        self.dec2 = []
-
-    def encryption(self, input_text):
-        x = input_text.split(" ")
-        inverse_text = x[::-1]
-        z = ""
-
-        for word in inverse_text:
-            z += "".join(reversed(word)) + " "
-
-        for i in z:
-            self.list_1.append(i)
-
-        for char in self.list_1:
-            if char != ' ':
-                for key in self.codes.keys():
-                    if key in char:
-                        self.list_2.append(self.codes.get(key))
-            else:
-                self.list_2.append("/s")
-
-        encrypt = ""
-        for item in self.list_2:
-            if item == "/s":
-                encrypt += " "
-            else:
-                encrypt += item
-
-        return encrypt
-
-    def decryption(self, encrypted_text):
-        z = list(encrypted_text)
-        for char in z:
-            if char != " ":
-                if char in self.codes.values():
-                    self.dec1.append(
-                        list(self.codes.keys())[list(self.codes.values()).index(char)]
-                    )
-            else:
-                self.dec1.append("/s")
-
-        decrypted_text = ""
-        for item in self.dec1:
-            if item == "/s":
-                decrypted_text += " "
-            else:
-                decrypted_text += item
-
-        reversed_words = decrypted_text.split(" ")
-        rev = reversed_words[::-1]
-        final_text = ""
-
-        for word in rev:
-            final_text += "".join(reversed(word)) + " "
-
-        return final_text.strip()
+def get_speech_input():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        st.info("🎙️ Speak now...")
+        recognizer.adjust_for_ambient_noise(source)
+        try:
+            audio = recognizer.listen(source, timeout=5)
+            st.success("✅ Speech recorded successfully!")
+            return audio
+        except sr.UnknownValueError:
+            st.error("❌ Could not understand the audio.")
+        except sr.RequestError:
+            st.error("❌ Could not request results from Google Speech Recognition.")
+        except Exception as e:
+            st.error(f"❌ An error occurred: {e}")
+        return None
 
 
-# Initialize Streamlit app
-st.set_page_config(page_title="Sound Encryption & Decryption", layout="wide")
+def recognize_speech(audio):
+    recognizer = sr.Recognizer()
+    try:
+        text = recognizer.recognize_google(audio)
+        st.success(f"🗣️ Detected Speech: {text}")
+        return text
+    except sr.UnknownValueError:
+        st.error("❌ Could not understand the audio.")
+    except sr.RequestError:
+        st.error("❌ Could not request results from Google Speech Recognition.")
+    except Exception as e:
+        st.error(f"❌ An error occurred: {e}")
+    return None
 
-# Sidebar navigation
-st.sidebar.title("Navigation")
-app_mode = st.sidebar.selectbox("Choose an action:", ["Home", "Encrypt Text", "Decrypt Text"])
 
-st.sidebar.title("About")
-st.sidebar.info("This app allows you to encrypt and decrypt text using custom mappings and save the result as an audio file.")
+st.title("🔊 Speech to Text with Playback")
 
-# Main section
-st.title("🔒 Sound Encryption & Decryption App")
+# Step 1: Record Speech
+if st.button("Record Speech"):
+    audio = get_speech_input()
+    if audio:
+        # Save the recorded audio for playback
+        with open("recorded_audio.wav", "wb") as f:
+            f.write(audio.get_wav_data())
+        st.audio("recorded_audio.wav", format="audio/wav")
+        st.write("🎧 Listen to the recorded speech above.")
 
-program = SoundEncryptionDecryptionProgram()
-
-if app_mode == "Home":
-    st.header("Welcome to the Sound Encryption & Decryption App!")
-    st.write("""
-    - Encrypt your text securely.
-    - Decrypt encrypted messages.
-    - Generate audio files for the encrypted or decrypted text.
-    """)
-    st.image("https://via.placeholder.com/800x400?text=Encryption+App", use_column_width=True)
-
-elif app_mode == "Encrypt Text":
-    st.header("Text Encryption")
-    input_text = st.text_area("Enter the text you want to encrypt:")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button("Encrypt"):
-            if input_text:
-                encrypted_text = program.encryption(input_text.lower())
-                st.success(f"🔐 Encrypted Text: {encrypted_text}")
-
-                # Save as audio
-                if st.checkbox("Generate audio file"):
-                    tts = gTTS(text=encrypted_text, lang='en')
-                    tts.save("encrypted.mp3")
-                    st.audio("encrypted.mp3", format="audio/mp3")
-                    st.write("Audio file saved as `encrypted.mp3`.")
-            else:
-                st.warning("Please enter text to encrypt.")
-
-elif app_mode == "Decrypt Text":
-    st.header("Text Decryption")
-    encrypted_text = st.text_area("Enter the encrypted text:")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button("Decrypt"):
-            if encrypted_text:
-                decrypted_text = program.decryption(encrypted_text)
-                st.success(f"🔓 Decrypted Text: {decrypted_text}")
-
-                # Save as audio
-                if st.checkbox("Generate audio file"):
-                    tts = gTTS(text=decrypted_text, lang='en')
-                    tts.save("decrypted.mp3")
-                    st.audio("decrypted.mp3", format="audio/mp3")
-                    st.write("Audio file saved as `decrypted.mp3`.")
-            else:
-                st.warning("Please enter encrypted text to decrypt.")
+        # Step 2: Detect Speech
+        detected_text = recognize_speech(audio)
+        if detected_text:
+            # Save detected speech as audio
+            tts = gTTS(text=detected_text, lang="en")
+            tts.save("detected_speech.mp3")
+            st.audio("detected_speech.mp3", format="audio/mp3")
+            st.write("🎧 Listen to the detected speech above.")
